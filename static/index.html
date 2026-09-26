@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Coedit | Live document</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #f3f6f3;
+      --surface: #fff;
+      --ink: #202a25;
+      --muted: #65716a;
+      --line: #d6dfd8;
+      --green: #245d45;
+      --lime: #d6f27a;
+      --coral: #df705a;
+      --mono: Consolas, "Liberation Mono", monospace;
+      --serif: Georgia, "Times New Roman", serif;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--ink);
+      background-color: var(--paper);
+      background-image: linear-gradient(rgba(36, 93, 69, .035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(36, 93, 69, .035) 1px, transparent 1px);
+      background-size: 28px 28px;
+      font-family: "Segoe UI", Tahoma, sans-serif;
+    }
+    .page { width: min(1040px, calc(100% - 40px)); margin: 0 auto; padding: 30px 0 40px; }
+    header, .toolbar, .document-meta, .presence-row {
+      display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    }
+    header { padding-bottom: 22px; border-bottom: 1px solid var(--line); }
+    .brand { display: flex; align-items: baseline; gap: 12px; }
+    h1 { margin: 0; font: 30px var(--serif); }
+    .brand-note, .eyebrow, label, .sequence, .connection { font-family: var(--mono); font-size: 12px; }
+    .brand-note, .eyebrow, label { color: var(--muted); }
+    .connection { display: flex; align-items: center; gap: 8px; color: var(--muted); }
+    .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--coral); }
+    .connection[data-state="connected"] .dot { background: #50a36f; }
+    main { padding-top: 26px; }
+    .toolbar { align-items: end; padding-bottom: 20px; }
+    .room-field { display: grid; gap: 7px; width: min(320px, 100%); }
+    input {
+      min-width: 0; height: 42px; padding: 0 12px; border: 1px solid var(--line);
+      border-radius: 3px; background: var(--surface); color: var(--ink); font: 14px var(--mono);
+    }
+    button {
+      min-height: 42px; padding: 0 17px; border: 1px solid var(--green); border-radius: 3px;
+      background: var(--green); color: white; font: 600 14px "Segoe UI", Tahoma, sans-serif;
+      cursor: pointer;
+    }
+    button:hover { background: #194b36; }
+    button:focus-visible, input:focus-visible, textarea:focus-visible {
+      outline: 3px solid var(--lime); outline-offset: 2px;
+    }
+    .document-meta {
+      min-height: 44px; padding: 0 14px; border: 1px solid var(--line); border-bottom: 0;
+      background: #e9efe9;
+    }
+    .sequence { color: var(--green); }
+    textarea {
+      display: block; width: 100%; min-height: 52vh; resize: vertical; padding: 24px;
+      border: 1px solid var(--line); border-radius: 0 0 3px 3px; background: var(--surface);
+      color: var(--ink); font: 17px/1.65 var(--serif);
+    }
+    textarea:disabled { color: #89948d; background: #f9fbf9; }
+    .presence-row { align-items: start; padding-top: 17px; color: var(--muted); font-size: 13px; }
+    .people { display: flex; flex-wrap: wrap; gap: 7px; margin: 8px 0 0; padding: 0; list-style: none; }
+    .people li {
+      padding: 5px 9px; border: 1px solid #bfcebf; border-radius: 2px; background: var(--lime);
+      color: var(--ink); font: 11px var(--mono);
+    }
+    #activity { min-height: 18px; text-align: right; }
+    @media (max-width: 600px) {
+      .page { width: min(100% - 24px, 1040px); padding-top: 18px; }
+      header { align-items: flex-start; }
+      .brand { display: block; }
+      .brand-note { display: block; margin-top: 5px; }
+      .toolbar { align-items: stretch; }
+      .room-field { flex: 1; }
+      textarea { min-height: 58vh; padding: 17px; }
+      .presence-row { display: block; }
+      #activity { padding-top: 12px; text-align: left; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header>
+      <div class="brand"><h1>Coedit</h1><span class="brand-note">shared text / RGA</span></div>
+      <div class="connection" id="connection" data-state="disconnected" aria-live="polite">
+        <span class="dot" aria-hidden="true"></span><span id="connection-label">Disconnected</span>
+      </div>
+    </header>
+    <main>
+      <div class="toolbar">
+        <label class="room-field" for="room">Room
+          <input id="room" value="demo" maxlength="120" autocomplete="off">
+        </label>
+        <button id="connect" type="button">Connect</button>
+      </div>
+      <div class="document-meta">
+        <span class="eyebrow">LIVE DOCUMENT</span>
+        <span class="sequence">SEQ <span id="sequence">0</span></span>
+      </div>
+      <textarea id="editor" aria-label="Shared document" disabled></textarea>
+      <div class="presence-row">
+        <div><span class="eyebrow">IN ROOM</span><ul id="people" class="people" aria-live="polite"></ul></div>
+        <div id="activity" aria-live="polite"></div>
+      </div>
+    </main>
+  </div>
+  <script src="/app.js" defer></script>
+</body>
+</html>
