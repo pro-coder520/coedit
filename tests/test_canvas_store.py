@@ -68,3 +68,37 @@ async def test_canvas_store_sequences_strokes_and_clear_and_deduplicates() -> No
         "canvas_restore",
     ]
     await database.close()
+
+
+@pytest.mark.asyncio
+async def test_local_commit_does_not_skip_undelivered_remote_sequence() -> None:
+    database = Database("sqlite+aiosqlite:///:memory:")
+    await database.create_schema()
+    local_store = CanvasStore(database)
+    remote_store = CanvasStore(database)
+    await local_store.sync("board")
+
+    first = StrokeMessage.model_validate(
+        {
+            "type": "stroke",
+            "operation_id": {"client_id": "remote", "counter": 1},
+            "color": "#db4f36",
+            "width": 5,
+            "points": [{"x": 0.2, "y": 0.3}],
+        }
+    )
+    second = ClearCanvasMessage.model_validate(
+        {
+            "type": "canvas_clear",
+            "operation_id": {"client_id": "local", "counter": 1},
+        }
+    )
+
+    assert await remote_store.apply("board", first) == (True, 1)
+    assert await local_store.apply("board", second) == (True, 2)
+    recovered = await local_store.apply_remote(
+        "board", 2, second.model_dump(mode="json")
+    )
+
+    assert [sequence for sequence, _ in recovered] == [1, 2]
+    await database.close()

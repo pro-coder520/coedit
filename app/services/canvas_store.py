@@ -67,7 +67,9 @@ class CanvasStore:
                     )
                 )
                 await session.commit()
-            self._sequences[room_id] = sequence
+            delivered_sequence = self._sequences.get(room_id, 0)
+            if sequence == delivered_sequence + 1:
+                self._sequences[room_id] = sequence
             return True, sequence
 
     async def sync(self, room_id: str) -> dict[str, Any]:
