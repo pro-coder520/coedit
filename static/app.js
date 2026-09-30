@@ -380,11 +380,13 @@ function applyCanvasHistory(action) {
   if (action.kind === "canvas-restore") {
     if (!action.strokes.length) return undefined;
     const strokes = action.strokes.map(({ type, ...stroke }) => stroke);
-    sendCanvasOperation({
-      type: "canvas_restore",
-      operation_id: nextId(),
-      strokes,
-    });
+    for (let index = 0; index < strokes.length; index += 1000) {
+      sendCanvasOperation({
+        type: "canvas_restore",
+        operation_id: nextId(),
+        strokes: strokes.slice(index, index + 1000),
+      });
+    }
     return {
       kind: "canvas-remove",
       strokeIds: action.strokes.map((stroke) => stroke.operation_id),
@@ -399,6 +401,7 @@ function applyHistoryAction(action) {
 }
 
 function undo() {
+  if (!ready || socket?.readyState !== WebSocket.OPEN) return;
   const action = undoStack.pop();
   if (!action) return;
   const reverse = applyHistoryAction(action);
@@ -407,6 +410,7 @@ function undo() {
 }
 
 function redo() {
+  if (!ready || socket?.readyState !== WebSocket.OPEN) return;
   const action = redoStack.pop();
   if (!action) return;
   const reverse = applyHistoryAction(action);
@@ -447,8 +451,8 @@ function handleMessage(message) {
   } else if (message.type === "canvas_sync") {
     canvasStrokes.clear();
     canvasSeen.clear();
+    canvasErased.clear();
     canvasPending.clear();
-    localCanvasOperations.clear();
     lastCanvasSequence = 0;
     for (const entry of message.operations) {
       receiveCanvasOperation(entry.seq, entry.operation);
@@ -456,6 +460,7 @@ function handleMessage(message) {
     canvasReady = true;
     updateReadyState();
     scheduleCanvasRender();
+    flushLocalCanvasOperations();
   } else if (message.type === "presence_snapshot") {
     users.clear();
     for (const user of message.users) users.add(user);
@@ -536,9 +541,21 @@ function sendOperation(operation) {
 function sendCanvasOperation(operation) {
   const operationKey = idKey(operation.operation_id);
   localCanvasOperations.set(operationKey, operation);
+  const currentSocket = socket;
+  if (currentSocket?.readyState !== WebSocket.OPEN) return;
   applyCanvasOperation(operation);
   scheduleCanvasRender();
-  send(operation);
+  currentSocket.send(JSON.stringify(operation));
+}
+
+function flushLocalCanvasOperations() {
+  const currentSocket = socket;
+  if (currentSocket?.readyState !== WebSocket.OPEN) return;
+  for (const operation of localCanvasOperations.values()) {
+    applyCanvasOperation(operation);
+    scheduleCanvasRender();
+    currentSocket.send(JSON.stringify(operation));
+  }
 }
 
 function canvasPoint(event) {
