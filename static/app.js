@@ -325,8 +325,8 @@ function updateReadyState() {
 }
 
 function updateHistoryButtons() {
-  undoButton.disabled = !ready || undoStack.length === 0;
-  redoButton.disabled = !ready || redoStack.length === 0;
+  undoButton.disabled = !ready;
+  redoButton.disabled = !ready;
 }
 
 function recordHistory(action) {
