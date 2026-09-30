@@ -6,8 +6,10 @@ from uuid import uuid4
 from redis.asyncio import Redis
 from redis.exceptions import RedisError
 
+from app.db.models import CanvasOperationRecord
 from app.crdt.rga import Operation, operation_from_data, operation_to_data
 from app.realtime.connection_manager import ConnectionManager
+from app.services.canvas_store import CanvasStore
 from app.services.document_store import DocumentStore
 
 
@@ -16,17 +18,20 @@ logger = logging.getLogger(__name__)
 
 class RedisBroker:
     operation_channel = "coedit:operations"
+    drawing_channel = "coedit:drawing"
     presence_channel = "coedit:presence"
 
     def __init__(
         self,
         url: str,
         store: DocumentStore,
+        canvas_store: CanvasStore,
         manager: ConnectionManager,
     ) -> None:
         self.instance_id = uuid4().hex
         self._redis = Redis.from_url(url, decode_responses=True)
         self._store = store
+        self._canvas_store = canvas_store
         self._manager = manager
         self._listener: asyncio.Task[None] | None = None
         self._subscribed = asyncio.Event()
@@ -72,6 +77,24 @@ class RedisBroker:
         except RedisError:
             logger.exception("Failed to publish presence for room %s", room_id)
 
+    async def publish_drawing(
+        self,
+        room_id: str,
+        sequence: int,
+        operation: dict[str, object],
+    ) -> None:
+        event = {
+            "instance_id": self.instance_id,
+            "kind": "drawing",
+            "room_id": room_id,
+            "seq": sequence,
+            "operation": operation,
+        }
+        try:
+            await self._redis.publish(self.drawing_channel, json.dumps(event))
+        except RedisError:
+            logger.exception("Failed to publish drawing operation for room %s", room_id)
+
     async def close(self) -> None:
         if self._listener is not None:
             self._listener.cancel()
@@ -85,7 +108,11 @@ class RedisBroker:
         while True:
             try:
                 async with self._redis.pubsub() as pubsub:
-                    await pubsub.subscribe(self.operation_channel, self.presence_channel)
+                    await pubsub.subscribe(
+                        self.operation_channel,
+                        self.drawing_channel,
+                        self.presence_channel,
+                    )
                     self._subscribed.set()
                     async for message in pubsub.listen():
                         if message.get("type") == "message":
@@ -118,6 +145,25 @@ class RedisBroker:
                 if "value" in event:
                     message["value"] = event["value"]
                 await self._manager.broadcast(room_id, json.dumps(message))
+                return
+
+            if event.get("kind") == "drawing":
+                recovered = await self._canvas_store.apply_remote(
+                    room_id,
+                    event["seq"],
+                    event["operation"],
+                )
+                for recovered_sequence, drawing_operation in recovered:
+                    await self._manager.broadcast(
+                        room_id,
+                        json.dumps(
+                            {
+                                "type": "canvas_operation",
+                                "seq": recovered_sequence,
+                                "operation": drawing_operation,
+                            }
+                        ),
+                    )
                 return
 
             sequence = event["seq"]

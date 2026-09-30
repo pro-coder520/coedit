@@ -1,6 +1,6 @@
 # Coedit Backend
 
-FastAPI WebSockets carry character-level RGA operations. PostgreSQL stores sequenced operations and periodic snapshots; Redis provides cross-instance fanout and expiring presence leases. SQLite is the default for a single local instance.
+FastAPI WebSockets carry character-level RGA operations and vector drawing events. PostgreSQL stores sequenced text operations, snapshots, and canvas history; Redis provides cross-instance fanout and expiring presence leases. SQLite is the default for a single local instance.
 
 ## Run locally
 
@@ -12,13 +12,13 @@ alembic upgrade head
 uvicorn app.main:app --reload --ws-ping-interval 20 --ws-ping-timeout 20
 ```
 
-Open `http://127.0.0.1:8000` for the textarea demo. The page creates a stable client ID, reconnects with its last contiguous sequence, and displays room presence.
+Open `http://127.0.0.1:8000` for the collaborative board. Draw with the pen, marker, or eraser; choose a color and brush size, or switch to **Write** for shared text. The color-assist toggle switches to a color-blind-friendly palette. The browser creates a stable client ID and restores text and canvas operations after reconnect.
 
 Set `DATABASE_URL` before running Alembic or the server to use PostgreSQL, for example `postgresql+asyncpg://postgres:postgres@localhost:5432/coedit`. Set `REDIS_URL=redis://localhost:6379/0` to enable shared presence and cross-instance broadcasts. Snapshots are written every 100 operations by default; override with `SNAPSHOT_INTERVAL`. The append-only operation log is retained for recovery.
 
 ## WebSocket protocol
 
-Connect to `/ws/{room_id}?user_id=alice&last_seq=0`. The server first sends a `sync` message and a `presence_snapshot`. A sync contains a snapshot when the requested sequence predates it, followed by operations after that snapshot or requested sequence. Accepted writes receive an `ack` with the durable sequence; retries of the same operation ID receive the original acknowledgement without rebroadcast.
+Connect to `/ws/{room_id}?user_id=alice&last_seq=0`. The server sends `sync`, `canvas_sync`, and `presence_snapshot` messages. Text sync contains a snapshot when the requested sequence predates it, followed by operations after that snapshot or requested sequence. Canvas sync replays sequenced strokes and clear events. Accepted writes receive a durable-sequence acknowledgement; retries of the same operation ID receive the original sequence without rebroadcast.
 
 An insert contains one character and references the preceding character ID, or `null` at the start:
 
@@ -33,6 +33,14 @@ A delete tombstones its target and has its own unique operation ID:
 ```
 
 Clients should choose counters greater than any operation counter they have observed, and never reuse an operation ID. Cursor and typing messages are ephemeral. The `user_id` query value is a demo identity, not authentication.
+
+A stroke uses normalized canvas points, a hex color, and a brush width:
+
+```json
+{"type":"stroke","operation_id":{"client_id":"alice","counter":3},"color":"#0072b2","width":6,"opacity":1,"points":[{"x":0.2,"y":0.3},{"x":0.6,"y":0.8}]}
+```
+
+Clear the board with `{"type":"canvas_clear","operation_id":{"client_id":"alice","counter":4}}`. Stroke and clear operations are persisted and replayed on reconnect.
 
 ## Multi-instance demo
 

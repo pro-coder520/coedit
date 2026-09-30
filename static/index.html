@@ -3,116 +3,484 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Coedit | Live document</title>
+  <meta name="theme-color" content="#f0f2ed">
+  <title>Coedit</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Serif+Display&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
   <style>
     :root {
       color-scheme: light;
-      --paper: #f3f6f3;
-      --surface: #fff;
+      --canvas: #eff1ec;
+      --paper: #fffefa;
       --ink: #202a25;
-      --muted: #65716a;
-      --line: #d6dfd8;
-      --green: #245d45;
-      --lime: #d6f27a;
-      --coral: #df705a;
-      --mono: Consolas, "Liberation Mono", monospace;
-      --serif: Georgia, "Times New Roman", serif;
+      --muted: #748078;
+      --line: #dce2db;
+      --rail: #203b32;
+      --rail-ink: #f4f4e9;
+      --rail-muted: #b4c3b9;
+      --accent: #d8f078;
+      --active: #52976c;
+      --warning: #c36b4b;
+      --focus: #e5bd53;
+      --sans: "DM Sans", "Segoe UI", sans-serif;
+      --serif: "DM Serif Display", Georgia, serif;
+      --mono: "IBM Plex Mono", Consolas, monospace;
     }
     * { box-sizing: border-box; }
     body {
       margin: 0;
+      min-width: 320px;
       min-height: 100vh;
       color: var(--ink);
-      background-color: var(--paper);
-      background-image: linear-gradient(rgba(36, 93, 69, .035) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(36, 93, 69, .035) 1px, transparent 1px);
-      background-size: 28px 28px;
-      font-family: "Segoe UI", Tahoma, sans-serif;
+      background-color: var(--canvas);
+      background-image: radial-gradient(#cbd3ca 0.65px, transparent 0.65px);
+      background-size: 17px 17px;
+      font-family: var(--sans);
+      -webkit-font-smoothing: antialiased;
     }
-    .page { width: min(1040px, calc(100% - 40px)); margin: 0 auto; padding: 30px 0 40px; }
-    header, .toolbar, .document-meta, .presence-row {
-      display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    button, input, textarea { font: inherit; }
+    button { cursor: pointer; }
+    .app-shell { display: grid; grid-template-columns: 252px minmax(0, 1fr); min-height: 100vh; }
+    .sidebar {
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+      padding: 27px 18px 20px;
+      background: var(--rail);
+      color: var(--rail-ink);
     }
-    header { padding-bottom: 22px; border-bottom: 1px solid var(--line); }
-    .brand { display: flex; align-items: baseline; gap: 12px; }
-    h1 { margin: 0; font: 30px var(--serif); }
-    .brand-note, .eyebrow, label, .sequence, .connection { font-family: var(--mono); font-size: 12px; }
-    .brand-note, .eyebrow, label { color: var(--muted); }
-    .connection { display: flex; align-items: center; gap: 8px; color: var(--muted); }
-    .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--coral); }
-    .connection[data-state="connected"] .dot { background: #50a36f; }
-    main { padding-top: 26px; }
-    .toolbar { align-items: end; padding-bottom: 20px; }
-    .room-field { display: grid; gap: 7px; width: min(320px, 100%); }
-    input {
-      min-width: 0; height: 42px; padding: 0 12px; border: 1px solid var(--line);
-      border-radius: 3px; background: var(--surface); color: var(--ink); font: 14px var(--mono);
+    .brand { display: flex; align-items: center; gap: 11px; padding: 0 4px 48px; }
+    .brand-mark {
+      display: grid;
+      width: 33px;
+      height: 33px;
+      place-items: center;
+      border-radius: 9px 9px 9px 3px;
+      background: var(--accent);
+      color: var(--rail);
+      font: 22px var(--serif);
+      line-height: 1;
     }
-    button {
-      min-height: 42px; padding: 0 17px; border: 1px solid var(--green); border-radius: 3px;
-      background: var(--green); color: white; font: 600 14px "Segoe UI", Tahoma, sans-serif;
-      cursor: pointer;
+    .brand-name { font: 23px var(--serif); letter-spacing: .1px; }
+    .sidebar-label, .section-title, .eyebrow, .sequence, .connection-label {
+      font: 500 10px var(--mono);
+      letter-spacing: 1px;
+      text-transform: uppercase;
     }
-    button:hover { background: #194b36; }
-    button:focus-visible, input:focus-visible, textarea:focus-visible {
-      outline: 3px solid var(--lime); outline-offset: 2px;
+    .sidebar-label, .section-title { color: var(--rail-muted); }
+    .room-label { display: block; margin: 0 0 9px 3px; }
+    .room-controls { display: grid; gap: 8px; }
+    .room-input {
+      width: 100%;
+      height: 42px;
+      padding: 0 12px;
+      border: 1px solid #4d685d;
+      border-radius: 5px;
+      outline: none;
+      background: #29483c;
+      color: var(--rail-ink);
+      font: 13px var(--mono);
     }
-    .document-meta {
-      min-height: 44px; padding: 0 14px; border: 1px solid var(--line); border-bottom: 0;
-      background: #e9efe9;
+    .room-input:focus { border-color: var(--accent); }
+    .join-button {
+      display: flex;
+      min-height: 41px;
+      align-items: center;
+      justify-content: center;
+      gap: 9px;
+      border: 0;
+      border-radius: 5px;
+      background: var(--accent);
+      color: #243329;
+      font-size: 13px;
+      font-weight: 700;
+      transition: background .18s ease, transform .18s ease;
     }
-    .sequence { color: var(--green); }
-    textarea {
-      display: block; width: 100%; min-height: 52vh; resize: vertical; padding: 24px;
-      border: 1px solid var(--line); border-radius: 0 0 3px 3px; background: var(--surface);
-      color: var(--ink); font: 17px/1.65 var(--serif);
+    .join-button:hover { transform: translateY(-1px); background: #e2fa91; }
+    .join-button svg { width: 15px; height: 15px; }
+    .people-section { margin-top: 43px; }
+    .section-heading { display: flex; align-items: center; justify-content: space-between; padding: 0 4px 12px; }
+    .people-count {
+      display: grid;
+      min-width: 22px;
+      height: 22px;
+      place-items: center;
+      border: 1px solid #557064;
+      border-radius: 50%;
+      color: var(--rail-ink);
+      font: 11px var(--mono);
     }
-    textarea:disabled { color: #89948d; background: #f9fbf9; }
-    .presence-row { align-items: start; padding-top: 17px; color: var(--muted); font-size: 13px; }
-    .people { display: flex; flex-wrap: wrap; gap: 7px; margin: 8px 0 0; padding: 0; list-style: none; }
-    .people li {
-      padding: 5px 9px; border: 1px solid #bfcebf; border-radius: 2px; background: var(--lime);
-      color: var(--ink); font: 11px var(--mono);
+    .people { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
+    .people li { display: flex; min-height: 39px; align-items: center; gap: 10px; padding: 4px 5px; border-radius: 5px; }
+    .person-avatar {
+      display: grid;
+      width: 27px;
+      height: 27px;
+      flex: 0 0 27px;
+      place-items: center;
+      border: 1px solid rgba(255,255,255,.48);
+      border-radius: 50%;
+      background: var(--person-color, #e5bd53);
+      color: #243329;
+      font: 500 9px var(--mono);
     }
-    #activity { min-height: 18px; text-align: right; }
-    @media (max-width: 600px) {
-      .page { width: min(100% - 24px, 1040px); padding-top: 18px; }
-      header { align-items: flex-start; }
-      .brand { display: block; }
-      .brand-note { display: block; margin-top: 5px; }
-      .toolbar { align-items: stretch; }
-      .room-field { flex: 1; }
-      textarea { min-height: 58vh; padding: 17px; }
-      .presence-row { display: block; }
-      #activity { padding-top: 12px; text-align: left; }
+    .person-name { overflow: hidden; color: var(--rail-ink); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+    .sidebar-foot { margin-top: auto; padding: 15px 4px 0; border-top: 1px solid #40594e; color: var(--rail-muted); font: 10px var(--mono); }
+    .workspace { min-width: 0; }
+    .topbar {
+      display: flex;
+      height: 68px;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      padding: 0 clamp(20px, 4vw, 54px);
+      border-bottom: 1px solid rgba(190, 199, 188, .7);
+      background: rgba(255, 254, 250, .72);
+    }
+    .breadcrumb { display: flex; min-width: 0; align-items: center; gap: 10px; font-size: 13px; }
+    .breadcrumb-root { color: var(--muted); }
+    .breadcrumb-divider { color: #a6aea6; }
+    #active-room { overflow: hidden; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+    .topbar-tools { display: flex; align-items: center; gap: clamp(14px, 3vw, 30px); }
+    .color-toggle { display: inline-flex; align-items: center; gap: 9px; color: #536158; cursor: pointer; font-size: 12px; white-space: nowrap; }
+    .color-toggle input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+    .toggle-track {
+      position: relative;
+      width: 34px;
+      height: 19px;
+      border: 1px solid #aeb9af;
+      border-radius: 20px;
+      background: #dfe4dd;
+      transition: background .18s ease;
+    }
+    .toggle-track::after {
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 13px;
+      height: 13px;
+      border-radius: 50%;
+      background: white;
+      box-shadow: 0 1px 2px rgba(0,0,0,.2);
+      content: "";
+      transition: transform .18s ease;
+    }
+    .color-toggle input:checked + .toggle-track { border-color: var(--rail); background: var(--rail); }
+    .color-toggle input:checked + .toggle-track::after { transform: translateX(15px); background: var(--accent); }
+    .color-toggle input:focus-visible + .toggle-track { outline: 3px solid var(--focus); outline-offset: 3px; }
+    .connection { display: inline-flex; align-items: center; gap: 8px; color: #56635b; font-size: 12px; white-space: nowrap; }
+    .connection-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--warning); box-shadow: 0 0 0 3px rgba(195,107,75,.12); }
+    .connection[data-state="connected"] .connection-dot { background: var(--active); box-shadow: 0 0 0 3px rgba(82,151,108,.13); }
+    .workspace-main { width: min(1050px, calc(100% - 80px)); margin: 0 auto; padding: clamp(44px, 8vh, 80px) 0 52px; }
+    .document-head { display: flex; align-items: end; justify-content: space-between; gap: 18px; margin-bottom: 17px; }
+    .document-title { margin: 0; font: 38px/1.05 var(--serif); font-weight: 400; }
+    .document-state { display: flex; align-items: center; gap: 8px; padding-bottom: 5px; color: var(--muted); font: 11px var(--mono); }
+    .state-mark { width: 6px; height: 6px; border-radius: 50%; background: var(--active); }
+    .editor-wrap {
+      position: relative;
+      min-height: min(650px, calc(100vh - 280px));
+      overflow: hidden;
+      border: 1px solid #dfe3dc;
+      border-radius: 6px;
+      background: var(--paper);
+      box-shadow: 0 16px 40px rgba(37, 54, 43, .07), 0 2px 5px rgba(37, 54, 43, .035);
+    }
+    .editor-wrap::before { position: absolute; inset: 0 auto 0 58px; width: 1px; background: #f0d9ca; content: ""; pointer-events: none; }
+    #editor {
+      display: block;
+      width: 100%;
+      min-height: min(650px, calc(100vh - 280px));
+      resize: vertical;
+      padding: 38px clamp(27px, 5.5vw, 74px) 42px clamp(78px, 9vw, 112px);
+      border: 0;
+      outline: 0;
+      background: repeating-linear-gradient(to bottom, transparent 0, transparent 34px, rgba(85, 105, 91, .075) 35px);
+      background-position: 0 38px;
+      color: #27322c;
+      font: 17px/35px var(--serif);
+      letter-spacing: .05px;
+    }
+    #editor:disabled { color: #a3aaa3; }
+    #editor::placeholder { color: transparent; }
+    .below-editor { display: flex; min-height: 53px; align-items: center; justify-content: space-between; gap: 20px; color: var(--muted); }
+    .sequence { display: inline-flex; align-items: center; gap: 8px; letter-spacing: .4px; }
+    .sequence-number { color: var(--ink); font-size: 11px; }
+    #activity { min-height: 18px; color: #536158; font-size: 12px; text-align: right; }
+    button:focus-visible, input:focus-visible, #editor:focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; }
+
+    body.color-safe {
+      --rail: #23384f;
+      --rail-muted: #c5cfdb;
+      --accent: #ffd166;
+      --active: #1769aa;
+      --warning: #ad4f1f;
+      --focus: #1469a8;
+    }
+    body.color-safe .connection[data-state="connected"] .connection-dot { box-shadow: 0 0 0 3px rgba(23,105,170,.18); }
+    body.color-safe .person-avatar { color: #172c40; }
+    body.color-safe .state-mark { border-radius: 1px; }
+
+    @media (max-width: 760px) {
+      .app-shell { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+      .sidebar { min-height: auto; padding: 14px 18px 12px; }
+      .brand { padding: 0 2px 14px; }
+      .brand-mark { width: 29px; height: 29px; font-size: 20px; }
+      .brand-name { font-size: 21px; }
+      .room-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 9px; }
+      .room-label { grid-column: 1 / -1; margin: 0 0 -3px 2px; }
+      .room-controls { display: grid; grid-template-columns: minmax(0, 1fr) 92px; gap: 8px; }
+      .join-button { min-height: 42px; }
+      .people-section { margin-top: 12px; }
+      .section-heading { padding: 0 2px 6px; }
+      .people { display: flex; gap: 6px; overflow-x: auto; }
+      .people li { min-height: 32px; flex: 0 0 auto; padding: 2px 5px; }
+      .person-avatar { width: 24px; height: 24px; flex-basis: 24px; }
+      .sidebar-foot { display: none; }
+      .topbar { height: 56px; padding: 0 18px; }
+      .topbar-tools { gap: 14px; }
+      .color-toggle > span:last-child { display: none; }
+      .workspace-main { width: calc(100% - 36px); padding: 36px 0 28px; }
+      .document-title { font-size: 33px; }
+      .editor-wrap, #editor { min-height: max(56vh, 390px); }
+      .editor-wrap::before { left: 35px; }
+      #editor { padding: 28px 20px 32px 52px; background-position: 0 28px; font-size: 16px; }
+      .below-editor { min-height: 46px; }
+    }
+    @media (max-width: 390px) {
+      .topbar { padding: 0 12px; }
+      .topbar-tools { gap: 10px; }
+      .connection { gap: 6px; font-size: 11px; }
+      .workspace-main { width: calc(100% - 24px); }
+      .document-title { font-size: 30px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; }
+    }
+
+    :root {
+      --canvas: #e9ece8;
+      --paper: #fdfcf8;
+      --ink: #242c2a;
+      --muted: #68736d;
+      --line: #d7ddd7;
+      --rail: #263b36;
+      --rail-ink: #f8f8f1;
+      --rail-muted: #b9c5bd;
+      --accent: #e3b85b;
+      --active: #227b72;
+      --focus: #d49d35;
+    }
+    body { background: var(--canvas); background-image: none; }
+    .app-shell { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: 66px minmax(0, 1fr); min-height: 100vh; }
+    .topbar {
+      display: flex; height: 66px; align-items: center; justify-content: space-between; gap: 20px;
+      padding: 0 clamp(16px, 3vw, 42px); border-bottom: 1px solid var(--line); background: var(--paper);
+    }
+    .brand { flex: 0 0 auto; padding: 0; }
+    .brand-mark { width: 31px; height: 31px; border-radius: 50% 50% 50% 6px; background: var(--active); color: white; }
+    .brand-name { font: 21px var(--serif); }
+    .room-area { display: flex; min-width: 0; align-items: center; gap: 9px; margin-left: clamp(8px, 2vw, 28px); }
+    .room-label { margin: 0; color: var(--muted); }
+    .room-controls { display: flex; align-items: center; gap: 6px; }
+    .room-input {
+      width: clamp(100px, 15vw, 180px); height: 34px; padding: 0 9px; border: 1px solid var(--line);
+      border-radius: 4px; outline: 0; background: #f6f7f3; color: var(--ink); font: 12px var(--mono);
+    }
+    .room-input:focus-visible { border-color: #85958b; outline: 1px solid #aeb9b0; outline-offset: 0; }
+    .join-button {
+      min-height: 34px; padding: 0 10px; border: 1px solid #c5cec5; border-radius: 4px;
+      background: #f6f7f3; color: #35443c; font-size: 12px; font-weight: 600; transition: background .15s ease;
+    }
+    .join-button:hover { transform: none; background: #e9eee8; }
+    .join-button svg { display: none; }
+    .topbar-tools { display: flex; min-width: 0; align-items: center; gap: clamp(12px, 2vw, 25px); }
+    .people-section { display: flex; align-items: center; margin: 0; }
+    .section-heading { padding: 0; }
+    .section-title, .sidebar-label, .people-count, .sidebar-foot { display: none; }
+    .people { display: flex; flex-direction: row-reverse; align-items: center; gap: 0; }
+    .people li { min-height: auto; margin-left: -8px; padding: 0; }
+    .person-avatar { width: 29px; height: 29px; flex-basis: 29px; border: 2px solid var(--paper); color: #22322b; font-size: 8px; }
+    .person-name { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+    .color-toggle { gap: 7px; color: #59655e; font-size: 11px; }
+    .toggle-track { width: 31px; height: 18px; }
+    .toggle-track::after { width: 12px; height: 12px; }
+    .color-toggle input:checked + .toggle-track::after { transform: translateX(12px); }
+    .connection, .connection-dot, .connection-label, .document-state, .sequence { display: none !important; }
+    .workspace { display: grid; grid-row: 2; grid-column: 1; grid-template-rows: 64px minmax(0, 1fr); min-height: 0; }
+    .toolbar {
+      display: flex; min-height: 64px; align-items: center; gap: clamp(10px, 2vw, 22px); overflow-x: auto;
+      padding: 0 clamp(16px, 3vw, 42px); border-bottom: 1px solid var(--line); background: #f7f8f4;
+      scrollbar-width: thin;
+    }
+    .mode-switch { display: inline-flex; flex: 0 0 auto; padding: 3px; border: 1px solid var(--line); border-radius: 5px; background: #ecefea; }
+    .mode-button, .tool-button {
+      display: inline-flex; height: 34px; flex: 0 0 auto; align-items: center; justify-content: center; gap: 7px;
+      padding: 0 11px; border: 0; border-radius: 3px; background: transparent; color: #637068;
+      font-size: 12px; font-weight: 600;
+    }
+    .mode-button[aria-pressed="true"] { background: white; color: #263b36; box-shadow: 0 1px 3px rgba(28, 45, 35, .12); }
+    .tool-button { min-width: 39px; padding: 0 9px; border: 1px solid transparent; }
+    .tool-button:hover { background: #edf0ea; color: var(--ink); }
+    .tool-button[aria-pressed="true"] { border-color: #c5cec5; background: white; color: #263b36; }
+    .tool-button:disabled { opacity: .42; cursor: not-allowed; }
+    .tool-button svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+    .history-tools { display: inline-flex; flex: 0 0 auto; gap: 3px; }
+    .history-tools .tool-button { min-width: 34px; padding: 0 7px; }
+    .tool-divider { width: 1px; height: 27px; flex: 0 0 1px; background: var(--line); }
+    .tool-group { display: flex; flex: 0 0 auto; align-items: center; gap: 5px; }
+    .swatches { display: flex; align-items: center; gap: 7px; }
+    .swatch {
+      position: relative; width: 23px; height: 23px; border: 2px solid white; border-radius: 50%;
+      background: var(--swatch); box-shadow: 0 0 0 1px #c9d0c9; cursor: pointer;
+    }
+    .swatch[aria-pressed="true"] { box-shadow: 0 0 0 2px #3e5147; }
+    .swatch[aria-pressed="true"]::after { position: absolute; inset: 6px; border-radius: 50%; background: white; content: ""; mix-blend-mode: difference; }
+    .size-control { display: flex; align-items: center; gap: 8px; color: #657169; font: 11px var(--mono); }
+    .size-control input { width: 88px; accent-color: var(--active); }
+    .size-output { width: 22px; color: var(--ink); text-align: right; }
+    .clear-button { padding: 0 10px; color: #785145; }
+    .workspace-main { display: grid; grid-template-rows: minmax(0, 1fr) auto; width: 100%; min-height: 0; margin: 0; padding: 0; }
+    .canvas-stage { position: relative; min-height: 0; padding: clamp(16px, 3vh, 30px) clamp(16px, 3vw, 42px); }
+    .canvas-frame {
+      position: relative; width: 100%; height: 100%; min-height: 360px; overflow: hidden; border: 1px solid #d2d9d1;
+      border-radius: 6px; background-color: #fbfbf7;
+      background-image: radial-gradient(#d9ded8 0.7px, transparent 0.7px); background-size: 18px 18px;
+      box-shadow: 0 8px 24px rgba(44, 57, 48, .06);
+    }
+    #board { display: block; width: 100%; height: 100%; touch-action: none; cursor: crosshair; }
+    #board[data-tool="eraser"] { cursor: cell; }
+    #editor {
+      display: none; width: 100%; height: 100%; min-height: 360px; resize: none; padding: clamp(24px, 6vw, 72px);
+      border: 0; outline: 0; background: transparent; color: #27322c; font: 18px/1.7 var(--serif);
+    }
+    .app-shell[data-mode="write"] #board { display: none; }
+    .app-shell[data-mode="write"] #editor { display: block; }
+    .app-shell[data-mode="write"] #tool-controls { opacity: .38; pointer-events: none; }
+    .below-editor { min-height: 35px; justify-content: center; padding: 0 20px 8px; }
+    #activity { min-height: 18px; color: #58645d; font-size: 11px; text-align: center; }
+    .sr-only {
+      position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden;
+      clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+    }
+    body.color-safe {
+      --rail: #263b36;
+      --accent: #e5b23f;
+      --active: #145b9b;
+      --focus: #135f9f;
+    }
+    body.color-safe .swatch[aria-pressed="true"] { outline: 2px solid var(--focus); outline-offset: 3px; }
+    body.color-safe .person-avatar { border-radius: 4px; color: #172c40; }
+    @media (max-width: 760px) {
+      .app-shell { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
+      .topbar { min-height: 67px; height: auto; flex-wrap: wrap; gap: 8px; padding: 10px 14px; }
+      .brand { gap: 8px; }
+      .brand-mark { width: 28px; height: 28px; font-size: 20px; }
+      .brand-name { font-size: 19px; }
+      .room-area { order: 3; width: 100%; margin: 0; }
+      .room-label { display: none; }
+      .room-controls { width: 100%; }
+      .room-input { width: auto; flex: 1; height: 32px; }
+      .topbar-tools { margin-left: auto; gap: 12px; }
+      .color-toggle > span:last-child { display: none; }
+      .people li { margin-left: -9px; }
+      .person-avatar { width: 26px; height: 26px; flex-basis: 26px; }
+      .toolbar { min-height: 58px; }
+      .tool-button, .mode-button { height: 32px; }
+      .size-control input { width: 68px; }
+      .workspace { grid-row: 2; grid-column: 1; grid-template-rows: 58px minmax(0, 1fr); }
+      .tool-divider:nth-of-type(n+4) { display: none; }
+      .canvas-stage { padding: 12px; }
+      .canvas-frame { min-height: 320px; }
+      #editor { min-height: 320px; }
+      .below-editor { min-height: 27px; }
+    }
+    @media (max-width: 420px) {
+      .toolbar { gap: 8px; padding: 0 9px; }
+      .mode-button { padding: 0 8px; }
+      .tool-button { min-width: 33px; padding: 0 6px; }
+      .swatches { gap: 5px; }
+      .swatch { width: 20px; height: 20px; }
+      .size-control { gap: 5px; }
+      .size-control input { width: 54px; }
+      .clear-button { font-size: 11px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { transition: none !important; animation: none !important; }
     }
   </style>
 </head>
 <body>
-  <div class="page">
-    <header>
-      <div class="brand"><h1>Coedit</h1><span class="brand-note">shared text / RGA</span></div>
-      <div class="connection" id="connection" data-state="disconnected" aria-live="polite">
-        <span class="dot" aria-hidden="true"></span><span id="connection-label">Disconnected</span>
+  <div class="app-shell" id="app-shell" data-mode="draw">
+    <header class="topbar">
+      <div class="brand"><span class="brand-mark" aria-hidden="true">c</span><span class="brand-name">coedit</span></div>
+      <div class="room-area">
+        <label class="sidebar-label room-label" for="room">Room</label>
+        <div class="room-controls">
+          <input class="room-input" id="room" value="demo" maxlength="120" autocomplete="off" aria-label="Room name">
+          <button class="join-button" id="connect" type="button">Join</button>
+        </div>
       </div>
-    </header>
-    <main>
-      <div class="toolbar">
-        <label class="room-field" for="room">Room
-          <input id="room" value="demo" maxlength="120" autocomplete="off">
+      <div class="topbar-tools">
+        <section class="people-section" aria-label="Collaborators">
+          <div class="section-heading"><span class="section-title" id="people-heading">People</span><span class="people-count" id="people-count">0</span></div>
+          <ul class="people" id="people" aria-live="polite"></ul>
+        </section>
+        <label class="color-toggle" for="color-assist" title="Switch to a color-blind-friendly palette">
+          <input id="color-assist" type="checkbox" aria-label="Use color-blind-friendly palette">
+          <span class="toggle-track" aria-hidden="true"></span><span>Color assist</span>
         </label>
-        <button id="connect" type="button">Connect</button>
       </div>
-      <div class="document-meta">
-        <span class="eyebrow">LIVE DOCUMENT</span>
-        <span class="sequence">SEQ <span id="sequence">0</span></span>
-      </div>
-      <textarea id="editor" aria-label="Shared document" disabled></textarea>
-      <div class="presence-row">
-        <div><span class="eyebrow">IN ROOM</span><ul id="people" class="people" aria-live="polite"></ul></div>
-        <div id="activity" aria-live="polite"></div>
-      </div>
-    </main>
+      <span class="sr-only" id="connection-label" role="status" aria-live="polite"></span>
+    </header>
+
+    <div class="workspace">
+      <nav class="toolbar" aria-label="Canvas tools">
+        <div class="mode-switch" role="group" aria-label="Workspace mode">
+          <button class="mode-button" id="draw-mode" type="button" aria-pressed="true">Draw</button>
+          <button class="mode-button" id="write-mode" type="button" aria-pressed="false">Write</button>
+        </div>
+        <div class="history-tools" role="group" aria-label="Edit history">
+          <button class="tool-button" id="undo" type="button" title="Undo" aria-label="Undo" disabled>
+            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 6 3.5 9.5 7 13M4 9.5h7a5 5 0 0 1 5 5"/></svg>
+          </button>
+          <button class="tool-button" id="redo" type="button" title="Redo" aria-label="Redo" disabled>
+            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m13 6 3.5 3.5L13 13m3-3.5h-7a5 5 0 0 0-5 5"/></svg>
+          </button>
+        </div>
+        <span class="tool-divider" aria-hidden="true"></span>
+        <div class="tool-group" id="tool-controls" role="group" aria-label="Drawing tools">
+          <button class="tool-button" data-tool="pen" type="button" aria-pressed="true" title="Pen">Pen</button>
+          <button class="tool-button" data-tool="marker" type="button" aria-pressed="false" title="Marker">Marker</button>
+          <button class="tool-button" data-tool="eraser" type="button" aria-pressed="false" title="Eraser">Eraser</button>
+        </div>
+        <span class="tool-divider" aria-hidden="true"></span>
+        <div class="swatches" id="swatches" role="group" aria-label="Stroke color">
+          <button class="swatch" type="button" data-color="#263f73" aria-label="Navy blue" title="Navy blue" aria-pressed="true" style="--swatch:#263f73"></button>
+          <button class="swatch" type="button" data-color="#d6533c" aria-label="Vermilion" title="Vermilion" aria-pressed="false" style="--swatch:#d6533c"></button>
+          <button class="swatch" type="button" data-color="#2b826f" aria-label="Jade" title="Jade" aria-pressed="false" style="--swatch:#2b826f"></button>
+          <button class="swatch" type="button" data-color="#e2a52f" aria-label="Amber" title="Amber" aria-pressed="false" style="--swatch:#e2a52f"></button>
+          <button class="swatch" type="button" data-color="#69549a" aria-label="Indigo" title="Indigo" aria-pressed="false" style="--swatch:#69549a"></button>
+          <button class="swatch" type="button" data-color="#252b28" aria-label="Charcoal" title="Charcoal" aria-pressed="false" style="--swatch:#252b28"></button>
+        </div>
+        <span class="tool-divider" aria-hidden="true"></span>
+        <label class="size-control" for="stroke-width">Size
+          <input id="stroke-width" type="range" min="2" max="24" value="6" aria-label="Brush size">
+          <output class="size-output" id="width-value" for="stroke-width">6</output>
+        </label>
+        <button class="tool-button clear-button" id="clear-canvas" type="button" title="Clear the board">Clear</button>
+      </nav>
+
+      <main class="workspace-main">
+        <div class="canvas-stage">
+          <div class="canvas-frame">
+            <canvas id="board" aria-label="Shared drawing board" data-tool="pen"></canvas>
+            <textarea id="editor" aria-label="Shared text document" spellcheck="true" disabled></textarea>
+          </div>
+        </div>
+        <div class="below-editor"><div id="activity" aria-live="polite"></div></div>
+      </main>
+    </div>
   </div>
   <script src="/app.js" defer></script>
 </body>

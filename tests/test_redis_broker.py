@@ -5,6 +5,7 @@ import pytest
 from app.crdt.rga import Insert
 from app.db.session import Database
 from app.realtime.redis_broker import RedisBroker
+from app.services.canvas_store import CanvasStore
 from app.services.document_store import DocumentStore
 
 
@@ -22,8 +23,14 @@ async def test_broker_fans_out_remote_events_and_recovers_gaps() -> None:
     await database.create_schema()
     originating_store = DocumentStore(database)
     receiving_store = DocumentStore(database)
+    canvas_store = CanvasStore(database)
     manager = BroadcastCollector()
-    broker = RedisBroker("redis://localhost:6379/0", receiving_store, manager)
+    broker = RedisBroker(
+        "redis://localhost:6379/0",
+        receiving_store,
+        canvas_store,
+        manager,
+    )
 
     await receiving_store.sync("shared-room", last_seq=0)
     first = Insert(element_id=("client-a", 1), after=None, value="A")
@@ -71,6 +78,28 @@ async def test_broker_fans_out_remote_events_and_recovers_gaps() -> None:
         "user_id": "alice",
         "value": 7,
     }
+
+    drawing_event = {
+        "instance_id": "origin",
+        "kind": "drawing",
+        "room_id": "shared-room",
+        "seq": 1,
+        "operation": {
+            "type": "stroke",
+            "operation_id": {"client_id": "artist", "counter": 1},
+            "color": "#263f73",
+            "width": 4,
+            "points": [{"x": 0.25, "y": 0.5}],
+        },
+    }
+    await broker._handle_message(json.dumps(drawing_event))
+    await broker._handle_message(json.dumps(drawing_event))
+    drawing_messages = [
+        json.loads(message)
+        for _, message in manager.messages
+        if json.loads(message).get("type") == "canvas_operation"
+    ]
+    assert len(drawing_messages) == 1
 
     await broker.close()
     await database.close()

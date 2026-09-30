@@ -12,6 +12,7 @@ def _test_app(tmp_path):
 
 def _assert_initial_messages(websocket, join_events: int = 0) -> None:
     assert websocket.receive_json()["type"] == "sync"
+    assert websocket.receive_json()["type"] == "canvas_sync"
     assert websocket.receive_json()["type"] == "presence_snapshot"
     for _ in range(join_events):
         event = websocket.receive_json()
@@ -144,6 +145,48 @@ def test_presence_events_and_heartbeat_are_ephemeral(tmp_path) -> None:
 
             alice.send_json({"type": "ping"})
             assert alice.receive_json() == {"type": "pong"}
+
+
+def test_drawing_operations_are_shared_acknowledged_and_replayed(tmp_path) -> None:
+    app = _test_app(tmp_path)
+    stroke = {
+        "type": "stroke",
+        "operation_id": {"client_id": "artist-a", "counter": 1},
+        "color": "#db4f36",
+        "width": 5,
+        "opacity": 1,
+        "points": [{"x": 0.2, "y": 0.3}, {"x": 0.6, "y": 0.8}],
+    }
+
+    with TestClient(app) as client:
+        with (
+            client.websocket_connect("/ws/board") as artist,
+            client.websocket_connect("/ws/board") as viewer,
+        ):
+            _assert_initial_messages(artist, join_events=1)
+            _assert_initial_messages(viewer, join_events=1)
+            artist.send_json(stroke)
+
+            assert artist.receive_json() == {
+                "type": "canvas_ack",
+                "seq": 1,
+                "operation_id": {"client_id": "artist-a", "counter": 1},
+            }
+            assert viewer.receive_json() == {
+                "type": "canvas_operation",
+                "seq": 1,
+                "operation": stroke,
+            }
+
+        with client.websocket_connect("/ws/board") as reconnect:
+            assert reconnect.receive_json()["type"] == "sync"
+            canvas_sync = reconnect.receive_json()
+            assert canvas_sync == {
+                "type": "canvas_sync",
+                "last_seq": 1,
+                "operations": [{"seq": 1, "operation": stroke}],
+            }
+            assert reconnect.receive_json()["type"] == "presence_snapshot"
 
 
 def test_restart_sync_sends_snapshot_and_operations_after_snapshot(tmp_path) -> None:

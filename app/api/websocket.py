@@ -4,11 +4,12 @@ from uuid import uuid4
 from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
 from pydantic import ValidationError
 
-from app.api.protocol import is_heartbeat, parse_operation, parse_presence
+from app.api.protocol import is_heartbeat, parse_drawing, parse_operation, parse_presence
 from app.crdt.rga import operation_to_data
 from app.realtime.connection_manager import ConnectionManager
 from app.realtime.presence import PresenceTracker
 from app.services.document_store import DocumentStore
+from app.services.canvas_store import CanvasStore
 
 router = APIRouter()
 
@@ -22,6 +23,7 @@ async def websocket_room(
 ) -> None:
     manager: ConnectionManager = websocket.app.state.connection_manager
     store: DocumentStore = websocket.app.state.document_store
+    canvas_store: CanvasStore = websocket.app.state.canvas_store
     presence: PresenceTracker = websocket.app.state.presence_tracker
     broker = websocket.app.state.redis_broker
     connection_id = uuid4().hex
@@ -32,6 +34,7 @@ async def websocket_room(
         await presence.register(room_id, connection_id, user_id)
         registered = True
         await websocket.send_json(await store.sync(room_id, last_seq))
+        await websocket.send_json(await canvas_store.sync(room_id))
         await websocket.send_json(
             {"type": "presence_snapshot", "users": await presence.users(room_id)}
         )
@@ -75,6 +78,45 @@ async def websocket_room(
                         user_id,
                         presence_message.value,
                     )
+                continue
+
+            try:
+                drawing_message = parse_drawing(message)
+            except ValidationError as error:
+                await websocket.send_json(
+                    {"type": "error", "detail": error.errors(include_input=False)}
+                )
+                continue
+
+            if drawing_message is not None:
+                drawing_operation = drawing_message.model_dump(mode="json")
+                try:
+                    accepted, sequence = await canvas_store.apply(room_id, drawing_message)
+                except ValueError as error:
+                    await websocket.send_json({"type": "error", "detail": str(error)})
+                    continue
+
+                if accepted:
+                    if broker is not None:
+                        await broker.publish_drawing(room_id, sequence, drawing_operation)
+                    await manager.broadcast(
+                        room_id,
+                        json.dumps(
+                            {
+                                "type": "canvas_operation",
+                                "seq": sequence,
+                                "operation": drawing_operation,
+                            }
+                        ),
+                        sender=websocket,
+                    )
+                await websocket.send_json(
+                    {
+                        "type": "canvas_ack",
+                        "seq": sequence,
+                        "operation_id": drawing_message.operation_id.model_dump(mode="json"),
+                    }
+                )
                 continue
 
             try:

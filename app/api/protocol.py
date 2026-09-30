@@ -62,6 +62,57 @@ class PresenceMessage(BaseModel):
         return self
 
 
+class PointMessage(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    x: float = Field(ge=0, le=1)
+    y: float = Field(ge=0, le=1)
+
+
+class StrokeDataMessage(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    operation_id: ElementIdMessage
+    color: str = Field(pattern=r"^#[0-9a-fA-F]{6}$")
+    width: float = Field(ge=1, le=64)
+    opacity: float = Field(default=1, ge=0.1, le=1)
+    points: list[PointMessage] = Field(min_length=1, max_length=5000)
+
+
+class StrokeMessage(StrokeDataMessage):
+    type: Literal["stroke"]
+
+
+class ClearCanvasMessage(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["canvas_clear"]
+    operation_id: ElementIdMessage
+
+
+class EraseCanvasMessage(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["canvas_erase"]
+    operation_id: ElementIdMessage
+    target: ElementIdMessage
+
+
+class RestoreCanvasMessage(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["canvas_restore"]
+    operation_id: ElementIdMessage
+    strokes: list[StrokeDataMessage] = Field(min_length=1, max_length=1000)
+
+
+DrawingMessage: TypeAlias = Annotated[
+    StrokeMessage | ClearCanvasMessage | EraseCanvasMessage | RestoreCanvasMessage,
+    Field(discriminator="type"),
+]
+_drawing_adapter = TypeAdapter(DrawingMessage)
+
+
 OperationMessage: TypeAlias = Annotated[
     InsertMessage | DeleteMessage,
     Field(discriminator="type"),
@@ -92,6 +143,23 @@ def parse_presence(message: str) -> PresenceMessage | None:
         return None
 
     return PresenceMessage.model_validate(payload)
+
+
+def parse_drawing(message: str) -> DrawingMessage | None:
+    try:
+        payload = json.loads(message)
+    except json.JSONDecodeError:
+        return None
+
+    if not isinstance(payload, dict) or payload.get("type") not in {
+        "stroke",
+        "canvas_clear",
+        "canvas_erase",
+        "canvas_restore",
+    }:
+        return None
+
+    return _drawing_adapter.validate_python(payload)
 
 
 def is_heartbeat(message: str) -> bool:
