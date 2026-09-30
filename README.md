@@ -40,7 +40,31 @@ A stroke uses normalized canvas points, a hex color, and a brush width:
 {"type":"stroke","operation_id":{"client_id":"alice","counter":3},"color":"#0072b2","width":6,"opacity":1,"points":[{"x":0.2,"y":0.3},{"x":0.6,"y":0.8}]}
 ```
 
-Clear the board with `{"type":"canvas_clear","operation_id":{"client_id":"alice","counter":4}}`. Stroke and clear operations are persisted and replayed on reconnect.
+Clear the board with `{"type":"canvas_clear","operation_id":{"client_id":"alice","counter":4}}`. Erase a stroke by targeting its original stroke operation ID:
+
+```json
+{"type":"canvas_erase","operation_id":{"client_id":"alice","counter":5},"target":{"client_id":"alice","counter":3}}
+```
+
+Restore erased strokes with a new operation ID and the stroke data to restore. Each restore contains 1-1000 strokes; split larger restores into multiple operations with distinct IDs:
+
+```json
+{"type":"canvas_restore","operation_id":{"client_id":"alice","counter":6},"strokes":[{"operation_id":{"client_id":"alice","counter":3},"color":"#0072b2","width":6,"opacity":1,"points":[{"x":0.2,"y":0.3},{"x":0.6,"y":0.8}]}]}
+```
+
+Canvas history is delivered in sequence order. For example, a sync can include an erase operation:
+
+```json
+{"type":"canvas_sync","last_seq":1,"operations":[{"seq":1,"operation":{"type":"canvas_erase","operation_id":{"client_id":"alice","counter":5},"target":{"client_id":"alice","counter":3}}}]}
+```
+
+Live events use the same operation shape inside a `canvas_operation` envelope; this example restores the stroke:
+
+```json
+{"type":"canvas_operation","seq":2,"operation":{"type":"canvas_restore","operation_id":{"client_id":"alice","counter":6},"strokes":[{"operation_id":{"client_id":"alice","counter":3},"color":"#0072b2","width":6,"opacity":1,"points":[{"x":0.2,"y":0.3},{"x":0.6,"y":0.8}]}]}}
+```
+
+Clients should replay each operation in sequence: erase removes the stroke identified by `target`, while restore reintroduces each included stroke and clears its erased state. Stroke, clear, erase, and restore operations are persisted and replayed on reconnect.
 
 ## Multi-instance demo
 
